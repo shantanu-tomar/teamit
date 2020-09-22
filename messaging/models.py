@@ -7,7 +7,6 @@ import magic
 
 User = get_user_model()
 
-
 ROOM_TYPES = [
     ('PG', 'Project Group'),
     ('UG', 'User Group'),

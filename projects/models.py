@@ -194,7 +194,6 @@ class TicketComment(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE)
     commenter = models.ForeignKey(Member, on_delete=models.CASCADE)
     comment = models.CharField(max_length=200, null=True, blank=True)
-    image = models.ImageField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -226,7 +225,6 @@ class MilestoneComment(models.Model):
     milestone = models.ForeignKey(Milestone, on_delete=models.CASCADE)
     commenter = models.ForeignKey(Member, on_delete=models.CASCADE)
     comment = models.CharField(max_length=200, null=True, blank=True)
-    image = models.ImageField(null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

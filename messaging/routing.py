@@ -4,5 +4,5 @@ from . import consumers
 
 websocket_urlpatterns = [
     path('ws/messages/', consumers.ProjectMessagesConsumer),
-    path('ws/messages/video/', consumers.VideoChatConsumer),
+    path('ws/comments/<str:comment_of>/<int:of_id>/', consumers.CommentConsumer),
 ]

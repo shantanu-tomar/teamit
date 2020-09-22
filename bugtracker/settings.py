@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from django.contrib.messages import constants as messages
+import django_heroku
 
 load_dotenv()
 
@@ -116,16 +117,16 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# CORS_ORIGIN_WHITELIST = [
-#     "http://127.0.0.1:4200",
-# ]
+CORS_ORIGIN_WHITELIST = [
+    "http://127.0.0.1:4200",
+]
 
-# CSRF_TRUSTED_ORIGINS = [
-#     "http://127.0.0.1:4200",
-# ]
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:4200",
+]
 
-CORS_ORIGIN_ALLOW_ALL = True
-# CORS_ALLOW_CREDENTIALS = True
+# CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_HEADERS = (
     'accept',
@@ -202,6 +203,7 @@ STATICFILES_DIRS = (
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
+IMAGE_UPLOAD_FOLDER = 'images'
 
 AUTH_USER_MODEL = "users.User"
 ACCOUNT_ADAPTER = "users.adapter.CustomAccountAdapter"
@@ -233,3 +235,5 @@ CLIENT_DOMAINS = []
 # Base URL for http requests FROM this website
 # BASE_URL = "http://127.0.0.1:8000/api"
 BASE_URL = "http://127.0.0.1:4200"
+
+django_heroku.settings(locals())

@@ -49,7 +49,7 @@ class LoginSerializer(RestAuthLoginSerializer):
 class ProfileUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'email', 'name', 'is_active',
+        fields = ('id', 'email', 'name', 'image', 'is_active',
                   'is_staff', 'is_superuser')
 
 
@@ -63,12 +63,10 @@ class ProfileUserSerializer(serializers.ModelSerializer):
 #         fields = '__all__'
 
 
-# class ProfileUpdateSerializer(serializers.ModelSerializer):
-#     # user = ProfileUserSerializer()
-
-#     class Meta:
-#         model = Profile
-#         fields = ('image',)
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('image', )
 
 
 # class AboutUsSerializer(serializers.ModelSerializer):

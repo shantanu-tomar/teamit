@@ -9,7 +9,7 @@ from django.views.generic.base import TemplateView
 
 from .serializers import (
     UserSerializer, ProfileUserSerializer,
-    LoginSerializer, PortalSerializer
+    LoginSerializer, PortalSerializer, UserUpdateSerializer,
 )
 from rest_framework import generics, viewsets
 from django.contrib.auth import authenticate
@@ -49,7 +49,7 @@ from django.utils.translation import ugettext_lazy as _
 from django.db.models import Q
 import operator
 from functools import reduce
-
+from rest_framework.parsers import FileUploadParser
 
 
 DECRYPT_PASS = settings.PASS_DECRYPT_KEY
@@ -180,6 +180,47 @@ class PasswordResetCompleteView(PasswordContextMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context['login_url'] = settings.LOGIN_URL
         return context
+
+
+class ProfileView(APIView):
+    parser_class = (FileUploadParser,)
+    
+    def get(self, request):
+        user = request.user
+
+        if not user.is_anonymous:
+            user_serializer = ProfileUserSerializer(user)
+
+            data = {
+                "user": user_serializer.data,
+            }
+            
+            return Response(data, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        
+        if not user.is_anonymous:
+            file_serializer = UserUpdateSerializer(data=request.data)
+            if file_serializer.is_valid():
+                user.name = request.data.get('name')
+                user.email = request.data.get('email')
+
+                if request.data.get('image') != '':
+                    user.image = request.data.get('image')
+                    user.save()
+                user.save()
+
+                return_serializer = ProfileUserSerializer(user)
+
+                data = {
+                    "user": return_serializer.data,
+                }
+                return Response(data, status=status.HTTP_200_OK)
+
+            else:
+                return Response(file_serializer.errors,
+                                status=status.HTTP_400_BAD_REQUEST)
 
 
 class GetPortalsView(APIView):

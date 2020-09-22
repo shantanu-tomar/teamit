@@ -2,6 +2,8 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
+from django.conf import settings
+import magic
 
 User = get_user_model()
 
@@ -18,6 +20,14 @@ MSG_STATUSES = [
     ('R', 'Read'),
     ('F', 'Failed')
 ]
+
+FILE_TYPES = [
+    ('application', 'Document'),
+    ('audio', 'Audio'),
+    ('video', 'Video'),
+    ('image', 'Image'),
+]
+
 
 class ProjectChatGroup(models.Model):
     # Is auto-created when a project is created
@@ -65,7 +75,8 @@ class Message(models.Model):
     user_chat_group = models.ForeignKey(UserChatGroup, on_delete=models.CASCADE, 
                                         null=True, blank=True)
     text = models.TextField(null=True, blank=True)
-    file = models.FileField(upload_to='tombug', null=True, blank=True)
+    file_type = models.CharField(choices=FILE_TYPES, max_length=11, null=True, blank=True, editable=False)
+    file = models.FileField(upload_to=settings.IMAGE_UPLOAD_FOLDER, null=True, blank=True)
     status = models.CharField(choices=MSG_STATUSES, max_length=1, default='S')
     id_on_client = models.CharField(max_length=36, help_text='Temporary ID on client', null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
@@ -76,6 +87,23 @@ class Message(models.Model):
     class Meta:
         ordering = ('created',)
 
+    def get_file_name(self):
+        if self.file:
+            path = self.file.name
+            name = path.replace(settings.IMAGE_UPLOAD_FOLDER +'/', '')
+            return name
+        return None
+
+    def save(self, *args, **kwargs):
+        if self.file:
+            mime = magic.from_buffer(self.file.read(), mime=True)
+            self.file_type = mime.split('/')[0]
+            print(self.file_type)
+        else:
+            self.file_type = None
+
+        super().save(*args, **kwargs)
+        
 
 # Post-save actions
 @receiver(post_save, sender=Message)

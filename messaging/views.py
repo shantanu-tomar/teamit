@@ -42,7 +42,6 @@ class MessagesView(APIView):
         
         try:
             room_type = kwargs['room_type']
-            chat_group_id = kwargs['room_id']
             to_retrieve = 'messages'
 
         except:
@@ -50,14 +49,14 @@ class MessagesView(APIView):
 
         if to_retrieve == 'messages':
             if room_type == 'PG':
+                chat_group_id = int(kwargs['room_id'])
                 chat_group = get_object_or_404(ProjectChatGroup, id=chat_group_id)
 
                 if self.verify_project_group_user(chat_group, user):
-                    messages = Message.objects.filter(project_chat_group=chat_group)
-                    serializer = MessageSerializer(messages, many=True)
+                    chat_serializer = ProjectChatGroupSerializer(chat_group)
 
                     data = {
-                        "messages": serializer.data,
+                        "chat": chat_serializer.data,
                     }
                     return Response(data, status=status.HTTP_200_OK)
 
@@ -69,7 +68,25 @@ class MessagesView(APIView):
                 pass
 
             elif room_type == 'PC':
-                pass
+                chat_group_id = kwargs['room_id']
+                user_1, user_2 = chat_group_id.split('-')
+                
+                user_condition_1 = reduce(
+                    operator.and_, [Q(sender__id=user_1, recepient__id=user_2)])
+                user_condition_2 = reduce(
+                    operator.and_, [Q(sender__id=user_2, recepient__id=user_1)])
+                final_condition = reduce(
+                    operator.or_, [Q(condition) for condition in [user_condition_1, user_condition_2]])
+
+                messages = Message.objects.filter(final_condition)
+                serializer = MessageSerializer(messages, many=True)
+                
+                data = {
+                    "chat": serializer.data,
+                }
+
+                return Response(data, status=status.HTTP_200_OK)
+                
 
             else:
                 return Response("Invalid request.", status=status.HTTP_400_BAD_REQUEST)

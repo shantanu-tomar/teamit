@@ -55,7 +55,7 @@ MEMBER_ROLES = (
     ('Submitter', 'Submitter'),
 )
 
-########### TO DO: REMOVE NULLABLE PORTAL FIELD ##################
+
 class Project(models.Model):
     portal = models.ForeignKey(Portal, on_delete=models.CASCADE)
     title = models.CharField(max_length=20)
@@ -87,7 +87,6 @@ class Project(models.Model):
         return self.member_set.all()
 
 
-########### TO DO: REMOVE NULLABLE FIELDS ##################
 class Member(models.Model):
     portal = models.ForeignKey(Portal, on_delete=models.CASCADE)
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
@@ -107,7 +106,6 @@ class Member(models.Model):
 
         if self.name != self.user.name:
             raise ValidationError({'name':(f"Member name field must be same as its User's name field, i.e. {self.user.name}")})
-
 
     def save(self, *args, **kwargs):
         if self.name is None:
@@ -179,6 +177,7 @@ class Ticket(models.Model):
 
         for field in fields_to_check:
             current_value = getattr(self, field)
+            print(field, current_value)
             old_value = self.__old_values[field]
 
             if current_value != old_value:

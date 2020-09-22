@@ -4,6 +4,11 @@ from projects.serializers import MemberSerializer
 from users.serializers import ProfileUserSerializer
 
 
+class FileSerializer(serializers.Serializer):
+    name = serializers.FileField(use_url=False)
+    url = serializers.FileField(use_url=True)
+
+
 class MessageMinimalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
@@ -13,6 +18,8 @@ class MessageMinimalSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     sender = ProfileUserSerializer()
     recepient = ProfileUserSerializer()
+    filename = serializers.CharField(source='get_file_name')
+
 
     class Meta:
         model = Message

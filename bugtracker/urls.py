@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from users import views as user_views
 from rest_auth import views as rest_auth_views
 from django.contrib.auth import views as auth_views
@@ -14,7 +14,9 @@ router.register('api/projects', project_views.ProjectViewSet, basename='projects
 
 
 urlpatterns = [
-	# AUTH PATHS
+    path('', project_views.index, name="index"),
+    
+    # AUTH PATHS
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path("api/register/", user_views.UserCreate.as_view(), name="register"),
     path("api/login/", user_views.LoginView.as_view(), name="login"),
@@ -30,6 +32,8 @@ urlpatterns = [
             template_name='users/password_reset_complete.html'),
          name="password_reset_complete"),
 
+    path('api/profile/', user_views.ProfileView.as_view()),
+
     path('api/get-portals/', user_views.GetPortalsView.as_view()),
     path("api/messages/", include('messaging.urls')),
 
@@ -44,6 +48,7 @@ urlpatterns += router.urls
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
+urlpatterns += re_path(r'^(?P<path>.*)/$', project_views.index),
 
 admin.site.site_header = "TomBug Admin"
 admin.site.site_title = "TomBug Admin Portal"

@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('home/', views.HomeView.as_view()),
+    path('portals/', views.PortalView.as_view()),
     path('portals/<str:portal>/', views.PortalView.as_view()),
 	path('portals/<str:portal>/projects/', views.PortalProjects.as_view()),
     path('portals/<str:portal>/projects/<int:proj_id>/', views.PortalProjects.as_view()),

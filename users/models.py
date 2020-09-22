@@ -47,7 +47,7 @@ class User(AbstractUser):
             'unique': ("A user with that email already exists."),
         },
     )
-
+    image = models.ImageField(default='default.jpg', upload_to='profile_pics')
     
     USERNAME_FIELD = 'email'  # Removes the username field in favour of email
     REQUIRED_FIELDS = ['name', ]

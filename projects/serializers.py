@@ -18,6 +18,12 @@ class MemberSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class MilestoneCommentBaseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MilestoneComment
+        fields = '__all__'
+
+
 class MilestoneCommentSerializer(serializers.ModelSerializer):
     commenter = MemberSerializer()
 
@@ -39,6 +45,12 @@ class MilestoneSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Milestone
+        fields = '__all__'
+
+
+class TicketCommentBaseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TicketComment
         fields = '__all__'
 
 

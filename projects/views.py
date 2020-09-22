@@ -1,4 +1,4 @@
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponse
 from django.conf import settings
 from django.contrib.auth.tokens import PasswordResetTokenGenerator as generator
@@ -36,6 +36,16 @@ User = get_user_model()
 
 
 BASE_URL = settings.BASE_URL
+
+
+# Setting CSRF cookie when django serves index.html to Angular
+# this decorator can also instead be used with every view/function that handles POST requests 
+@ensure_csrf_cookie
+def index(request, path=''):
+    """
+    Renders the Angular2 SPA
+    """
+    return render(request, "index.html")
 
 
 def date_validator(*args):
@@ -162,8 +172,21 @@ class PortalProjects(APIView):
                     member_obj = get_object_or_404(Member, user=user, project=project)
                     member_role = member_obj.role
                 except KeyError:
-                    project_serializer = ProjectSerializer(
-                        get_portal_projects(portal_obj), many=True)
+                    # Member instances of user
+                    member_qs = Member.objects.filter(user=user)
+                    if member_qs.exists():
+                        member_condition = reduce(operator.or_, [
+                                         Q(member__id=member.id, portal=portal_obj) for member in member_qs])
+                        
+                        projects = Project.objects.filter(
+                            Q(owner=user, portal=portal_obj) | member_condition |
+                            Q(portal__owner=user)).distinct()
+                    else:
+                        projects = Project.objects.filter(Q(owner=user, portal=portal_obj) |
+                                                          Q(portal__owner=user)).distinct()
+
+                    
+                    project_serializer = ProjectSerializer(projects, many=True)
 
                 if portal_obj.owner == user:
                     portal_owner = True

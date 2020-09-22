@@ -9,6 +9,9 @@ from django.shortcuts import get_object_or_404
 from .views import get_user_chatgroups
 from .models import ProjectChatGroup, Message, UserChatGroup
 from .serializers import ( MessageSerializer, MessageMinimalSerializer)
+from projects.models import TicketComment, MilestoneComment, Member
+from projects.serializers import (MilestoneCommentSerializer, TicketCommentSerializer,
+                                  TicketCommentBaseSerializer, MilestoneCommentBaseSerializer)
 import base64
 from django.core.files import File
 import os
@@ -19,6 +22,14 @@ from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.utils.decorators import method_decorator
 
 User = get_user_model()
+
+
+@database_sync_to_async
+def get_user_member(project, user):
+    # Takes in a project and a user object & returns a 
+    # member object corresponding to that user in that project
+    member = get_object_or_404(Member, user=user, project=project)
+    return member
 
 
 def convert_imgb64_to_file(file_b64_str, filename):
@@ -150,10 +161,10 @@ class ProjectMessagesConsumer(AsyncWebsocketConsumer):
         msg_id_on_client = payload.get('temp_id', None)
 
         try:
-            file_type = payload['file']['type']
-            file_name = payload['file']['name']
+            file_type = payload['file_type']
+            file_name = payload['filename']
 
-            *args, file_b64_str = payload['file']['data'].split(',')
+            *args, file_b64_str = payload['file'].split(',')
             django_file = convert_imgb64_to_file(file_b64_str, file_name)
         
         except KeyError:
@@ -380,13 +391,11 @@ class ProjectMessagesConsumer(AsyncWebsocketConsumer):
         serializer = MessageMinimalSerializer(data=message_dict)
         serializer.is_valid(raise_exception=True)
         message = serializer.save()
-        print("MESSAGE SAVED")
         
         if file != None:
             message.file.save(file_name, file)
 
         detail_serializer = MessageSerializer(message)
-        message.save()
 
         return detail_serializer.data
 
@@ -436,19 +445,18 @@ class ProjectMessagesConsumer(AsyncWebsocketConsumer):
         return channel_group_names
 
 
-class VideoChatConsumer(AsyncWebsocketConsumer):
-    room_name_prefix = 'inbox_'
-    room_group_name_prefix = 'video_'
-
+class CommentConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        # user = self.scope['user']
+        comment_of = self.scope["url_route"]["kwargs"]["comment_of"]
+        of_id = self.scope["url_route"]["kwargs"]["of_id"]
+        
+        self.room_name = f"{comment_of}_{of_id}"
+        self.room_group_name = f"group_{self.room_name}"
         user = await get_user(self.scope)
 
         if user == AnonymousUser():
             raise DenyConnection("Invalid User")
-        
-        self.room_name = f"{self.room_name_prefix}{user.id}"
-        self.room_group_name = f"{self.room_group_name_prefix}{self.room_name}"
+
 
         # Join room group
         await self.channel_layer.group_add(
@@ -460,112 +468,75 @@ class VideoChatConsumer(AsyncWebsocketConsumer):
         print("connected")
 
     
-    # Receive message from Client
+    # Receive comment from Client
     async def receive(self, text_data):
-        text_data_json = json.loads(text_data)
-        event_type = text_data_json['event']
-        payload = text_data_json['payload']
-
-        event = {
-            'type': event_type,
-            'payload': payload,
-        }
+        comment_of = self.scope["url_route"]["kwargs"]["comment_of"]
+        of_id = self.scope["url_route"]["kwargs"]["of_id"]
         
-        try:
-            await eval(f"self.{event_type}(event)")
+        commenter_user = await get_user(self.scope)
+        payload = json.loads(text_data)
+        comment_text = payload['comment']
+        project = payload['project_id']
+
+        # get member object of commenter_user
+        commenter = await get_user_member(project, commenter_user)
+
+        if comment_of == 't':
+            comment_dict = {
+                "ticket": of_id,
+                "commenter": commenter.id,
+                "comment": comment_text,
+            }
+
+        elif comment_of == 'm':
+            comment_dict = {
+                "milestone": of_id,
+                "commenter": commenter.id,
+                "comment": comment_text,
+            }
+        
+        # Save comment in database
+        comment = await self.save_comment(comment_dict, comment_of)
+        
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': "comment_received",
+                'comment': comment,
+            }
+        )
+
+
+    # Receive comment from room group
+    async def comment_received(self, event):
+        comment = event['comment']
+        
+        # Send comment to Client
+        await self.send(text_data=json.dumps({
+            'type': "comment",
+            'comment': comment
+        }))
+
+
+    @database_sync_to_async
+    def save_comment(self, comment_dict, comment_of):
+        if comment_of == 't':
+            serializer = TicketCommentBaseSerializer(data=comment_dict)
+            serializer.is_valid(raise_exception=True)
+            comment = serializer.save()
+
+            detail_serializer = TicketCommentSerializer(comment)
+       
+        elif comment_of == 'm':
+            serializer = MilestoneCommentBaseSerializer(data=comment_dict)
+            serializer.is_valid(raise_exception=True)
+            comment = serializer.save()
             
-        except:
-            raise DenyConnection("Invalid Request")
-
-
-    async def videochat_offer(self, event):
-        user = await get_user(self.scope)
-        caller_group_name = f"{self.room_group_name_prefix}{self.room_name_prefix}{user.id}"
-        event_payload = event["payload"]
-        event_payload.update({ "caller": user.id })
-        print("OFFER", user.id)
-
-        target_room_group_names = await self.get_group_names(event_payload, user)
+            detail_serializer = MilestoneCommentSerializer(comment)
         
-        payload = {
-            "type": "videochat_offer",
-            'payload': event_payload
-        }
-
-        for group in target_room_group_names:
-            if group != caller_group_name:
-                print("SENDING OFFER TO ", group)
-                await self.channel_layer.group_send(
-                    group,
-                    {
-                        'type': "event_emitter",
-                        'payload': payload,
-                    }
-                )
+        return detail_serializer.data
 
 
-    async def videochat_answer(self, event):
-        user = await get_user(self.scope)
-        answerer_group_name = f"{self.room_group_name_prefix}{self.room_name_prefix}{user.id}"
-        print("ANSWER", user.id)
-
-        event_payload = event["payload"]
-        event_payload.update({ 
-            "answerer": user.id 
-        })
-        
-        target_room_group_names = await self.get_group_names(event_payload, user)
-        
-        payload = {
-            "type": "videochat_answer",
-            'payload': event_payload
-        }
-
-        for group in target_room_group_names:
-            if group != answerer_group_name:
-                await self.channel_layer.group_send(
-                    group,
-                    {
-                        'type': "event_emitter",
-                        'payload': payload,
-                    }
-                )
-    
-
-    async def ice_candidate(self, event):
-        user = await get_user(self.scope)
-        sender_group_name = f"{self.room_group_name_prefix}{self.room_name_prefix}{user.id}"
-        event_payload = event["payload"]
-        print("ICE-CANDIDATE", user.id)
-
-        event_payload.update({ 
-            "sender": user.id
-        })
-        
-        target_room_group_names = await self.get_group_names(event_payload, user)
-        
-        payload = {
-            "type": "ice_candidate",
-            'payload': event_payload
-        }
-
-        for group in target_room_group_names:
-            if group != sender_group_name:
-                await self.channel_layer.group_send(
-                    group,
-                    {
-                        'type': "event_emitter",
-                        'payload': payload,
-                    }
-                )
-
-
-    async def event_emitter(self, event):
-        payload = event["payload"]
-        # Send message to Each Client
-        await self.send(text_data=json.dumps(payload))
-        
-    
     async def disconnect(self, close_code):
         # Leave room group
         await self.channel_layer.group_discard(
@@ -574,39 +545,3 @@ class VideoChatConsumer(AsyncWebsocketConsumer):
         )
 
         print("disconnected", close_code)
-
-
-    @database_sync_to_async
-    def get_group_names(self, payload, user):
-        channel_group_names = []
-
-        if payload['target_type'] == 'PG':
-            group = get_object_or_404(ProjectChatGroup, id=payload['target'])
-
-            # checking if the user is authorized to send message to this group
-            user_project_groups, *args = get_user_chatgroups(user)
-            if group in user_project_groups:
-                members = group.project.member_set.all()
-                
-                for member in members:
-                    user_id = member.user.id  
-                    target_room_name = f"{self.room_name_prefix}{user_id}"
-                    target_room_group_name = f"{self.room_group_name_prefix}{target_room_name}"
-                    channel_group_names.append(target_room_group_name)
-
-        elif payload['target_type'] == 'UG':
-            group = get_object_or_404(UserChatGroup, id=payload['target'])
-
-            # checking if the user is authorized to send message to this group
-            *args, user_userchat_groups = get_user_chatgroups(user)
-            if group in user_userchat_groups:
-                members = group.chat_members.all()
-                
-                for member in members:
-                    user_id = member.user.id  
-                    target_room_name = f"{self.room_name_prefix}{user_id}"
-                    target_room_group_name = f"{self.room_group_name_prefix}{target_room_name}"
-                    channel_group_names.append(target_room_group_name)
-
-        print(channel_group_names)
-        return channel_group_names

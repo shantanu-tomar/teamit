@@ -102,6 +102,7 @@ class ProjectMessagesConsumer(AsyncWebsocketConsumer):
     room_group_name_prefix = 'group_'
 
     async def connect(self):
+        print("HERE")
         # user = self.scope['user']
         user = await get_user(self.scope)
 

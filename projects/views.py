@@ -31,6 +31,7 @@ from django.utils.crypto import constant_time_compare, salted_hmac
 from django.utils.http import base36_to_int, int_to_base36
 from users.de_en_crypt_password import encrypt, decrypt
 from django.contrib.auth import get_user_model
+from django.http import QueryDict
 
 User = get_user_model()
 
@@ -79,10 +80,14 @@ def get_portal_projects(portal):
 
 def get_user_assigned_tickets(user):
     member_qs = Member.objects.filter(user=user)
-    member_condition = reduce(operator.or_, [
-                         Q(assigned_to=member) for member in member_qs])
-        
-    tickets = Ticket.objects.filter(member_condition).distinct()
+    if member_qs.exists():
+        member_condition = reduce(operator.or_, [
+                             Q(assigned_to=member) for member in member_qs])
+            
+        tickets = Ticket.objects.filter(member_condition).distinct()
+
+    else:
+        tickets = None
     return tickets
 
 
@@ -116,16 +121,26 @@ class HomeView(APIView):
         project_serializer = ProjectSerializer(projects, many=True)
 
         tickets = get_user_assigned_tickets(user)
-        due_tickets = tickets.exclude(Q(status='Closed') | Q(status='Resolved'))
+
+        if tickets is not None:
+            due_tickets = tickets.exclude(Q(status='Closed') | Q(status='Resolved'))
+        else:
+            due_tickets = None
+
         due_tickets_serializer = TicketSerializer(due_tickets, many=True)
 
         today = datetime.date.today()
 
-        project_milestone_condition = reduce(operator.or_, [
-            Q(project=project) for project in projects])
+        if projects.exists():
+            project_milestone_condition = reduce(operator.or_, [
+                Q(project=project) for project in projects])
 
-        due_milestones = Milestone.objects.filter(
-            project_milestone_condition, start_date__lte=today, completed=False)
+            due_milestones = Milestone.objects.filter(
+                project_milestone_condition, start_date__lte=today, completed=False)
+
+        else:
+            due_milestones = None
+            
         due_milestone_serializer = MilestoneSerializer(due_milestones, many=True)
 
         

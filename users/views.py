@@ -63,11 +63,16 @@ sensitive_post_parameters_m = method_decorator(
 def get_user_portals(user):
     # Portals that the user owns or is a member of
     member_qs = Member.objects.filter(user=user)
-    member_condition = reduce(operator.or_, [
-                         Q(member__id=member.id) for member in member_qs])
+    if member_qs.exists():
+        member_condition = reduce(operator.or_, [
+                             Q(member__id=member.id) for member in member_qs])
         
-    user_portals = Portal.objects.filter(
-        Q(owner=user) | member_condition).distinct()
+        user_portals = Portal.objects.filter(
+            Q(owner=user) | member_condition).distinct()
+
+    else:
+        user_portals = None
+
     return user_portals
 
 
@@ -137,6 +142,7 @@ class LoginView(RestAuthLoginView):
         user_serializer = ProfileUserSerializer(user)
 
         user_portals = get_user_portals(user)
+
         portal_serializer = PortalSerializer(user_portals, many=True)
     
         response = Response({

@@ -59,7 +59,7 @@ MEMBER_ROLES = (
 class Project(models.Model):
     portal = models.ForeignKey(Portal, on_delete=models.CASCADE)
     title = models.CharField(max_length=20)
-    description = models.TextField()
+    description = models.TextField(null=True, blank=True)
     reference_link = models.URLField(help_text='include http protocol; eg: "https://example.com"',
                                      null=True, blank=True)
     owner = models.ForeignKey(
@@ -79,7 +79,8 @@ class Project(models.Model):
         # if not, creating one...
         owner = self.owner
         obj, created = Member.objects.get_or_create(
-            project=self, email=owner.email)
+            portal=self.portal, project=self, 
+            email=owner.email, user=owner)
         obj.role = 'Administrator'
         obj.save()
 
@@ -141,7 +142,7 @@ class Ticket(models.Model):
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     title = models.CharField(max_length=25)
-    description = models.TextField()
+    description = models.TextField(null=True, blank=True)
     assigned_to = models.ForeignKey(
         Member, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='assigned_to')
@@ -177,7 +178,6 @@ class Ticket(models.Model):
 
         for field in fields_to_check:
             current_value = getattr(self, field)
-            print(field, current_value)
             old_value = self.__old_values[field]
 
             if current_value != old_value:

@@ -30,7 +30,7 @@ FILE_TYPES = [
 
 class ProjectChatGroup(models.Model):
     # Is auto-created when a project is created
-    room_type = models.CharField(choices=ROOM_TYPES, max_length=2)
+    room_type = models.CharField(choices=ROOM_TYPES, max_length=2, null=True, blank=True)
 
     project = models.ForeignKey('projects.Project', on_delete=models.CASCADE)
     name = models.CharField(help_text="Fills automatically. Same as project title", 
@@ -41,13 +41,13 @@ class ProjectChatGroup(models.Model):
 
     def save(self, *args, **kwargs):
         self.name = self.project.title
-        self.__room_type = 'PG'
+        self.room_type = 'PG'
         super().save(*args, **kwargs)
 
 
 class UserChatGroup(models.Model):
     # Created by a user
-    room_type = models.CharField(choices=ROOM_TYPES, max_length=2)
+    room_type = models.CharField(choices=ROOM_TYPES, max_length=2, null=True, blank=True)
     
     name = models.CharField(max_length=20)
     chat_members = models.ManyToManyField('projects.Member',
@@ -58,7 +58,7 @@ class UserChatGroup(models.Model):
         return str(self.id)
 
     def save(self, *args, **kwargs):
-        self.__room_type = 'UG'
+        self.room_type = 'UG'
         super().save(*args, **kwargs)
 
 

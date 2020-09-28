@@ -71,7 +71,8 @@ def get_user_portals(user):
             Q(owner=user) | member_condition).distinct()
 
     else:
-        user_portals = None
+        user_portals = Portal.objects.filter(owner=user)
+
 
     return user_portals
 

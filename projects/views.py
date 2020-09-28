@@ -8,7 +8,7 @@ from .models import (PROJECT_STATUSES, TICKET_TYPES, TICKET_STATUS,
 from .communications import send_mail
 from .serializers import (ProjectSerializer, TicketSerializer, TicketBaseSerializer,
                           MilestoneSerializer, MemberSerializer, MilestoneCommentSerializer,
-                          MilestoneBaseSerializer, TicketCommentSerializer)
+                          MilestoneBaseSerializer, TicketCommentSerializer, MinimalProjectSerializer)
 from users.serializers import ProfileUserSerializer
 from rest_framework import permissions
 from rest_framework import viewsets
@@ -57,6 +57,16 @@ def date_validator(*args):
             index = dates.index(date)
             dates[index] = None
     return dates
+
+
+def nullify_empty_fields(*args):
+    values = list(args)
+    
+    for value in values:
+        if value == '':
+            index = values.index(value)
+            values[index] = None
+    return values
 
 
 def get_user_projects(user):
@@ -111,6 +121,19 @@ def user_project_admin(project, user):
     return False
 
 
+class NavData(APIView):
+    def get(self, request):
+        user = request.user
+        portals = get_user_portals(user)
+        portal_serializer = PortalSerializer(portals, many=True)
+
+        data = {
+            "portals": portal_serializer.data,
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
 class HomeView(APIView):
     def get(self, request):
         user = request.user
@@ -155,9 +178,57 @@ class HomeView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
+@csrf_exempt
+def validate_new_portal(request):
+    portal_name = request.POST.get('name')
+    
+    try:
+        portal_obj = Portal.objects.get(name=portal_name)
+        response = {
+            "available": False,
+        }
+    
+    except Portal.DoesNotExist:
+        response = {
+            "available": True,
+        }
+    
+    return HttpResponse(json.dumps(response))
+
+
 class PortalView(APIView):
     def get(self, *args, **kwargs):
         pass
+
+
+    def post(self, request, *args, **kwargs):
+        # Create a new portal
+        user = request.user
+        name = request.data['name']
+
+        if not user.is_anonymous:
+            try:
+                portal_obj = Portal.objects.get(name=name)
+                response = {
+                    "available": False,
+                }
+            
+                return Response(response, status=status.HTTP_200_OK)
+            
+            except Portal.DoesNotExist:
+                new_portal = Portal.objects.create(name=name, owner=user)
+                serializer = PortalSerializer(new_portal)
+
+                response = {
+                    "available": True,
+                    "created": True,
+                    "portal": serializer.data,
+                }
+    
+                return Response(response, status=status.HTTP_201_CREATED)
+
+        else:
+            return Response("Unauthenticated user!", status=status.HTTP_403_FORBIDDEN)
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -189,6 +260,7 @@ class PortalProjects(APIView):
                 except KeyError:
                     # Member instances of user
                     member_qs = Member.objects.filter(user=user)
+                    
                     if member_qs.exists():
                         member_condition = reduce(operator.or_, [
                                          Q(member__id=member.id, portal=portal_obj) for member in member_qs])
@@ -223,6 +295,39 @@ class PortalProjects(APIView):
         except KeyError:
             return Response("Invalid request.",
                             status=status.HTTP_400_BAD_REQUEST)
+
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        portal_name = kwargs['portal']
+
+        try:
+            portal_obj = Portal.objects.get(name=portal_name, owner=user)
+            data = request.data
+            data['owner'] = user
+            data['portal'] = portal_obj
+
+            start_date, end_date = nullify_empty_fields(
+                data['start_date'], data['end_date'])
+            
+            data['start_date'] = start_date
+            data['end_date'] = end_date
+
+            if data['completed'] == '':
+                data['completed'] = False
+
+            project = Project.objects.create(**data)
+            return_serializer = ProjectSerializer(project)
+
+            response = {
+                "project": return_serializer.data,
+            }
+
+            return Response(response, status=status.HTTP_201_CREATED)
+
+        except Portal.DoesNotExist:
+            return Response('This portal either does not exist, or you do not have administrative privileges to it.', 
+                            status=status.HTTP_403_FORBIDDEN)
 
 
     def perform_update(self, serializer):
@@ -644,7 +749,7 @@ class MilestoneCommentView(APIView):
                 return Response(comment_serializer.data, status=status.HTTP_201_CREATED)
 
             except (Milestone.DoesNotExist, Member.DoesNotExist):
-                return Response("This page either doesn't exist, or you're not authorized to access it.",
+                return Response("Tthis.auth.isAuthenticated()his page either doesn't exist, or you're not authorized to access it.",
                                 status=status.HTTP_400_BAD_REQUEST)
             except Exception:
                 return Response("An exception occurred, try again.", status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -817,13 +922,11 @@ class TicketCommentView(APIView):
                 member = get_object_or_404(Member, project__id=project_id, 
                     user=user, portal__name=portal_name)
                 comment_text = request.data.get('comment')
-                comment_image = request.data.get('image', None)
 
                 TicketComment.objects.create(
                     ticket=ticket,
                     commenter=member,
                     comment=comment_text,
-                    image=comment_image,
                 )
 
                 comments = TicketComment.objects.filter(ticket=ticket)
@@ -841,6 +944,23 @@ class TicketCommentView(APIView):
         except KeyError:
             return Response("Invalid request.",
                             status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserTickets(APIView):
+    def get(self, request, *args, **kwargs):
+        # Tickets assigned to and by the user
+        user = request.user
+        
+        if not user.is_anonymous:
+            user_tickets = Ticket.objects.filter(
+                Q(assigned_to__user=user) | Q(submitter__user=user)).distinct()
+            
+            serializer = TicketSerializer(user_tickets, many=True)
+            response = {
+                "tickets": serializer.data
+            }
+
+            return Response(response, status=status.HTTP_200_OK)
 
 
 @api_view()

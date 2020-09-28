@@ -9,7 +9,7 @@ class MinimalProjectSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Project
-        fields = ('id', 'title', 'portal')
+        fields = '__all__'
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -82,7 +82,8 @@ class TicketSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ticket
-        exclude = ('project', )
+        # exclude = ('project', )
+        fields = '__all__'
 
 
     def get_tickethistory_set(self, instance):

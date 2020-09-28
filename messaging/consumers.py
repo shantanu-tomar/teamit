@@ -153,6 +153,7 @@ class ProjectMessagesConsumer(AsyncWebsocketConsumer):
         sender_group_name = f"{self.room_group_name_prefix}{self.room_name_prefix}{user.id}"
 
         payload = event['payload']
+        print("USER ", payload)
         target_room_group_names = await self.get_group_names(payload, user)
 
         msg_text = payload.get('text')
@@ -171,7 +172,7 @@ class ProjectMessagesConsumer(AsyncWebsocketConsumer):
             file_type = None
             file_name = None
             django_file = None
-        
+
         if room_type == 'PG':
             message_dict = {
                 "sender": user.id,

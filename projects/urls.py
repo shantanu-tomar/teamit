@@ -4,6 +4,9 @@ from . import views
 
 urlpatterns = [
     path('home/', views.HomeView.as_view()),
+    path('nav-data/', views.NavData.as_view()),
+    path('validate-portal/', views.validate_new_portal),
+    path('user-tickets/', views.UserTickets.as_view()),
     path('portals/', views.PortalView.as_view()),
     path('portals/<str:portal>/', views.PortalView.as_view()),
 	path('portals/<str:portal>/projects/', views.PortalProjects.as_view()),
